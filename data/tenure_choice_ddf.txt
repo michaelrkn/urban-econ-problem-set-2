@@ -1,0 +1,48 @@
+year 		Census year
+
+hhincome 	Total household income
+
+perwt 		Person weight 
+
+age 		Age 
+
+marst 		Marital status
+			1 Married, spouse present
+			2 Married, spouse absent
+			3 Separated
+			4 Divorced
+			5 Widowed
+			6 Never married/single
+
+citizen 	Citizenship
+			0 US Born
+			1 Born abroad of American parents
+			2 Naturalized citizen
+			3 No a citizen
+
+empstat     Employed status
+			0 N/A
+			1 Employed
+			2 Unemployed
+			3 Not in labor force
+			
+labforce 	Labor force status
+			0 N/A
+			1 Not in labor force	
+			2 In labor force
+
+classwkr    Class of worker
+			0 N/A
+			1 Self-employed
+			2 Works for wages
+
+trantime	Travel time to work
+
+own			Own Home
+			0 No 
+			1 Yes
+			
+vet 		Veteran
+			0 No
+			1 Yes
+			

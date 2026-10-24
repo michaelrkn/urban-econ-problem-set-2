@@ -1,0 +1,8 @@
+Data Dictionary
+tract: census housing tract
+property_id: house identifier
+year: year of sale
+yrquarter: quarter of sale
+sqft2: square footage in 1000's of feet
+(race/ethnic) share: share of tract of race/ethnicity
+medincome: median income of homeowners in tract
