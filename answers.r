@@ -149,3 +149,94 @@ ggsave(
   device = ragg::agg_png
 )
 
+
+# 1.3
+
+tract_fe_model <- feols(
+  lnprice ~ sqft2 + numbath + i(year, ref = 1990) | tract,
+  data = price_data,
+  cluster = ~property_id
+)
+
+
+# 1.4
+
+house_fe_model <- feols(
+  lnprice ~ i(year, ref = 1990) | property_id,
+  data = price_data,
+  cluster = ~property_id
+)
+
+summary_variables <- c("sqft2", "numbath", "med_income", "black_share", "hisp_share", "asian_share")
+
+repeat_sale_comparison <- price_data |>
+  group_by(property_id) |>
+  summarise(
+    group = if_else(
+      n() == 1,
+      "Single Sale",
+      "Multiple Sales"
+    ),
+    across(
+      all_of(summary_variables),
+      first
+    ),
+    .groups = "drop"
+  ) |>
+  group_by(group) |>
+  summarise(
+    across(
+      all_of(summary_variables),
+      ~ mean(.x, na.rm = TRUE)
+    ),
+    .groups = "drop"
+  )
+
+repeat_sale_comparison |>
+  tidyr::pivot_longer(
+    cols = -group,
+    names_to = "Measure",
+    values_to = "Average"
+  ) |>
+  mutate(
+    Measure = recode(
+      Measure,
+      sqft2 = "Mean sqft2",
+      numbath = "Mean bathrooms",
+      med_income = "Mean median income",
+      black_share = "Mean Black share",
+      hisp_share = "Mean Hispanic share",
+      asian_share = "Mean Asian share"
+    )
+  ) |>
+  tidyr::pivot_wider(names_from = group, values_from = Average) |>
+  mutate(
+    across(
+      c(`Single Sale`, `Multiple Sales`),
+      ~ case_when(
+        Measure %in% c("Mean sqft2", "Mean median income") ~ .x * 1000,
+        Measure %in% c("Mean Black share", "Mean Hispanic share", "Mean Asian share") ~ .x * 100,
+        TRUE ~ .x
+      )
+    )
+  ) |>
+  flextable() |>
+  set_header_labels(
+    Measure = "",
+    `Single Sale` = "Single Sale",
+    `Multiple Sales` = "Multiple Sales"
+  ) |>
+  colformat_double(j = c("Single Sale", "Multiple Sales"), digits = 3) |>
+  colformat_double(i = ~ Measure == "Mean sqft2", j = c("Single Sale", "Multiple Sales"), digits = 0, big.mark = ",") |>
+  colformat_double(i = ~ Measure == "Mean median income", j = c("Single Sale", "Multiple Sales"), digits = 0, big.mark = ",", prefix = "$") |>
+  colformat_double(i = ~ Measure %in% c("Mean Black share", "Mean Hispanic share", "Mean Asian share"), j = c("Single Sale", "Multiple Sales"), digits = 1, suffix = "%") |>
+  font(fontname = "Times New Roman", part = "all") |>
+  fontsize(size = 12, part = "all") |>
+  align(j = "Measure", align = "left", part = "all") |>
+  align(j = c("Single Sale", "Multiple Sales"), align = "right", part = "all") |>
+  autofit() |>
+  save_as_docx(path = "answers/1.4.docx")
+
+
+# 1.5
+
