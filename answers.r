@@ -59,3 +59,93 @@ naive_plot <- naive |>
   ) +
   theme_minimal(base_family = "Times New Roman")
 ggsave("answers/1.1.png", plot = naive_plot, device = ragg::agg_png)
+
+
+# 1.2
+
+hedonic_model <- feols(
+  lnprice ~ sqft2 + numbath + black_share + hisp_share +
+    asian_share + med_income + i(year, ref = 1990),
+  data = price_data,
+  cluster = ~property_id
+)
+
+model_summary <- summary(hedonic_model)
+coefficient_table <- model_summary$coeftable |>
+  as.data.frame() |>
+  tibble::rownames_to_column("Term")
+model_fit <- fitstat(hedonic_model, c("rmse", "ar2"))
+
+flextable(coefficient_table) |>
+  theme_booktabs() |>
+  set_table_properties(opts_word = list(repeat_headers = FALSE)) |>
+  add_header_lines(values = c(
+    paste("N = ", format(model_summary$nobs, big.mark = ",")),
+    paste("Standard errors:", attr(model_summary$coeftable, "vcov_type"))
+  )) |>
+  set_header_labels(`Pr(>|t|)` = "P-value") |>
+  add_footer_lines(values = c(
+    "*** p < 0.001; ** p < 0.01; * p < 0.05; . p < 0.1",
+    sprintf("RMSE: %.6f", as.numeric(model_fit["rmse"])),
+    sprintf("Adj. R-squared: %.6f", as.numeric(model_fit["ar2"]))
+  )) |>
+  font(fontname = "Times New Roman", part = "all") |>
+  fontsize(size = 12, part = "all") |>
+  fontsize(size = 10, part = "footer") |>
+  padding(padding.top = 0, padding.bottom = 0) |>
+  colformat_double(j = c("Estimate", "Std. Error", "t value"), digits = 2) |>
+  colformat_double(j = "Pr(>|t|)", digits = 3) |>
+  align(j = "Term", align = "left", part = "all") |>
+  align(i = 1:2, align = "right", part = "header") |>
+  align(j = c("Estimate", "Std. Error", "t value", "Pr(>|t|)"), align = "right", part = "all") |>
+  autofit() |>
+  save_as_docx(path = "answers/1.2.docx")
+
+hedonic_log_index <- fixest::iplot(
+  hedonic_model,
+  i.select = 1,
+  ci_level = 0.95,
+  only.params = TRUE
+)$prms
+
+hedonic_indexlog__plot <- ggplot(hedonic_log_index, aes(x = x, y = estimate)) +
+  geom_ribbon(aes(ymin = ci_low, ymax = ci_high), fill = "#176B87", alpha = 0.2) +
+  geom_hline(yintercept = 0, color = "gray50", linetype = "dashed") +
+  geom_line(color = "#176B87") +
+  geom_point(color = "#176B87") +
+  labs(
+    x = "Year",
+    y = "Log points relative to 1990"
+  ) +
+  theme_minimal(base_family = "Times New Roman")
+
+ggsave(
+  "answers/1.2b.png",
+  plot = hedonic_indexlog__plot,
+  device = ragg::agg_png
+)
+
+hedonic_level_index <- hedonic_log_index |>
+  mutate(
+    estimate = 100 * exp(estimate),
+    ci_low = 100 * exp(ci_low),
+    ci_high = 100 * exp(ci_high)
+  )
+
+hedonic_level_index_plot <- ggplot(hedonic_level_index, aes(x = x, y = estimate)) +
+  geom_ribbon(aes(ymin = ci_low, ymax = ci_high), fill = "#176B87", alpha = 0.2) +
+  geom_hline(yintercept = 100, color = "gray50", linetype = "dashed") +
+  geom_line(color = "#176B87") +
+  geom_point(color = "#176B87") +
+  labs(
+    x = "Year",
+    y = "Price index (1990 = 100)"
+  ) +
+  theme_minimal(base_family = "Times New Roman")
+
+ggsave(
+  "answers/1.2c.png",
+  plot = hedonic_level_index_plot,
+  device = ragg::agg_png
+)
+
