@@ -401,3 +401,70 @@ flextable(quarterly_sales_summary) |>
   align(j = "Sales", align = "right", part = "all") |>
   autofit() |>
   save_as_docx(path = "answers/1.6.docx")
+
+
+# 1.7
+
+median_tract_income <- median(price_data$med_income, na.rm = TRUE)
+above_median_income <- filter(price_data, med_income >= median_tract_income)
+below_median_income <- filter(price_data, med_income < median_tract_income)
+
+above_median_income_tract_fe_model <- feols(
+  lnprice ~ sqft2 + numbath + i(year, ref = 1990) | tract,
+  data = above_median_income,
+  cluster = ~property_id
+)
+
+below_median_income_tract_fe_model <- feols(
+  lnprice ~ sqft2 + numbath + i(year, ref = 1990) | tract,
+  data = below_median_income,
+  cluster = ~property_id
+)
+
+income_group_year_effects <- bind_rows(
+  fixest::iplot(
+    above_median_income_tract_fe_model,
+    i.select = 1,
+    ci_level = 0.95,
+    only.params = TRUE
+  )$prms |>
+    transmute(year = x, estimate, ci_low, ci_high, Group = "Above median income"),
+  fixest::iplot(
+    below_median_income_tract_fe_model,
+    i.select = 1,
+    ci_level = 0.95,
+    only.params = TRUE
+  )$prms |>
+    transmute(year = x, estimate, ci_low, ci_high, Group = "Below median income")
+)
+
+income_group_year_effects_plot <- ggplot(
+  income_group_year_effects,
+  aes(x = year, y = estimate, color = Group, fill = Group, group = Group)
+) +
+  geom_ribbon(aes(ymin = ci_low, ymax = ci_high), alpha = 0.18, color = NA) +
+  geom_line() +
+  geom_point() +
+  geom_hline(yintercept = 0, color = "gray50", linetype = "dashed") +
+  scale_color_manual(values = c(
+    "Above median income" = "#176B87",
+    "Below median income" = "#D97732"
+  )) +
+  scale_fill_manual(values = c(
+    "Above median income" = "#176B87",
+    "Below median income" = "#D97732"
+  )) +
+  labs(
+    x = "Year",
+    y = "Log points relative to 1990",
+    color = NULL,
+    fill = NULL
+  ) +
+  theme_minimal(base_family = "Times New Roman")
+
+ggsave(
+  "answers/1.7.png",
+  plot = income_group_year_effects_plot,
+  device = ragg::agg_png
+)
+
