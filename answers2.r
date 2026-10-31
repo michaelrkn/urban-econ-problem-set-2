@@ -389,3 +389,46 @@ flextable(decline_coefficients) |>
   align(j = c("Estimate", "Std. Error", "t value", "Pr(>|t|)"), align = "right", part = "all") |>
   autofit() |>
   save_as_docx(path = "answers/2.5.docx")
+
+
+# 2.7
+
+submarket_sample_sizes <- readxl::read_excel(
+  "data/2022_q4_price_index_data.xlsx",
+  sheet = "Submarket_Annual_Sample_Size"
+)
+
+submarket_sales_plot <- submarket_sample_sizes |>
+  rename(year = 1) |>
+  tidyr::pivot_longer(
+    cols = -year,
+    names_to = "submarket_code",
+    values_to = "sales"
+  ) |>
+  group_by(submarket_code) |>
+  mutate(submarket = first(sales)) |>
+  ungroup() |>
+  filter(!is.na(year), year != "Total") |>
+  mutate(
+    year = readr::parse_integer(year),
+    sales = readr::parse_integer(sales)
+  ) |>
+  filter(submarket %in% c(
+    "Evanston/Skokie",
+    "Chicago--Uptown/Rogers Park",
+    "Chicago--Bronzeville/Hyde Park",
+    "Palatine/Barrington",
+    "Calumet City/Harvey"
+  )) |>
+  ggplot(aes(x = year, y = sales, color = submarket, group = submarket)) +
+  geom_line() +
+  geom_point() +
+  labs(
+    title = "Sales per Year",
+    x = "Year",
+    y = "Number of Sales",
+    color = "Submarket"
+  ) +
+  theme_minimal(base_family = "Times New Roman")
+
+ggsave("answers/2.7.png", plot = submarket_sales_plot, device = ragg::agg_png)
