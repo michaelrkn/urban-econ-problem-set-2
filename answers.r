@@ -315,3 +315,89 @@ flextable(index_comparison) |>
   autofit() |>
   save_as_docx(path = "answers/1.5b.docx")
 
+
+# 1.6
+
+tract_fe_quarterly_model <- feols(
+  lnprice ~ sqft2 + numbath + i(yrquarter, ref = 19901) | tract,
+  data = price_data,
+  cluster = ~property_id
+)
+
+annual_tract_effects <- fixest::iplot(
+  tract_fe_model,
+  i.select = 1,
+  ci_level = 0.95,
+  only.params = TRUE
+)$prms |>
+  transmute(year_quarter = x, estimate, Model = "Annual")
+
+quarterly_tract_effects <- fixest::iplot(
+  tract_fe_quarterly_model,
+  i.select = 1,
+  ci_level = 0.95,
+  only.params = TRUE
+)$prms |>
+  transmute(
+    year_quarter = floor(x / 10) + ((x %% 10) - 1) / 4,
+    estimate,
+    Model = "Quarterly"
+  )
+
+tract_time_comparison <- bind_rows(annual_tract_effects, quarterly_tract_effects)
+
+tract_time_comparison_plot <- ggplot(
+  tract_time_comparison,
+  aes(x = year_quarter, y = estimate, color = Model, group = Model)
+) +
+  geom_line() +
+  geom_point() +
+  scale_x_continuous(
+    breaks = seq(1990, 2007, by = 1),
+    minor_breaks = seq(1990, 2008, by = 0.25),
+    labels = seq(1990, 2007, by = 1)
+  ) +
+  scale_color_manual(values = c(
+    "Annual" = "#176B87",
+    "Quarterly" = "#D97732"
+  )) +
+  labs(
+    x = "Year/quarter",
+    y = "Log points relative to 1990",
+    color = "Tract Fixed Effects"
+  ) +
+  theme_minimal(base_family = "Times New Roman") +
+  theme(panel.grid.minor.x = element_line(color = "gray90", linewidth = 0.3))
+
+ggsave(
+  "answers/1.6.png",
+  plot = tract_time_comparison_plot,
+  device = ragg::agg_png,
+  width = 12,
+  height = 6
+)
+
+
+quarterly_sales_summary <- price_data |>
+  count(yrquarter, name = "Sales") |>
+  summarise(
+    Mean = mean(Sales),
+    Median = median(Sales),
+    Minimum = min(Sales),
+    Maximum = max(Sales),
+    `Standard deviation` = sd(Sales)
+  ) |>
+  tidyr::pivot_longer(
+    cols = everything(),
+    names_to = "Statistic",
+    values_to = "Sales"
+  )
+
+flextable(quarterly_sales_summary) |>
+  theme_booktabs() |>
+  font(fontname = "Times New Roman", part = "all") |>
+  fontsize(size = 12, part = "all") |>
+  colformat_double(j = "Sales", digits = 1, big.mark = ",") |>
+  align(j = "Sales", align = "right", part = "all") |>
+  autofit() |>
+  save_as_docx(path = "answers/1.6.docx")
