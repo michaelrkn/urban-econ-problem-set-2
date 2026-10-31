@@ -240,3 +240,78 @@ repeat_sale_comparison |>
 
 # 1.5
 
+model_comparison <- bind_rows(
+  naive |>
+    transmute(year, estimate = naive_mean_index, Model = "Naive"),
+  fixest::iplot(hedonic_model, i.select = 1, only.params = TRUE)$prms |>
+    transmute(year = x, estimate, Model = "Hedonic"),
+  fixest::iplot(tract_fe_model, i.select = 1, only.params = TRUE)$prms |>
+    transmute(year = x, estimate, Model = "Tract fixed effects"),
+  fixest::iplot(house_fe_model, i.select = 1, only.params = TRUE)$prms |>
+    transmute(year = x, estimate, Model = "Property fixed effects")
+)
+
+model_comparison_plot <- ggplot(
+  model_comparison,
+  aes(x = year, y = estimate, color = Model, group = Model)
+) +
+  geom_line() +
+  geom_point() +
+  labs(
+    x = "Year",
+    y = "Log points relative to 1990",
+    color = "Model"
+  ) +
+  theme_minimal(base_family = "Times New Roman")
+
+ggsave(
+  "answers/1.5a.png",
+  plot = model_comparison_plot,
+  device = ragg::agg_png
+)
+
+index_comparison_plot <- model_comparison |>
+  mutate(index = 100 * exp(estimate)) |>
+  ggplot(aes(x = year, y = index, color = Model, group = Model)) +
+  geom_line() +
+  geom_point() +
+  geom_hline(yintercept = 100, color = "gray50", linetype = "dashed") +
+  labs(
+    x = "Year",
+    y = "Index (1990 = 100)",
+    color = "Model"
+  ) +
+  theme_minimal(base_family = "Times New Roman")
+
+ggsave(
+  "answers/1.5d.png",
+  plot = index_comparison_plot,
+  device = ragg::agg_png
+)
+
+index_comparison <- tibble::tibble(
+  Model = c("Naive", "Hedonic", "Tract fixed effects", "Property fixed effects"),
+  `Log Index` = c(
+    naive$naive_mean_index[naive$year == 2007],
+    unname(coef(hedonic_model)["year::2007"]),
+    unname(coef(tract_fe_model)["year::2007"]),
+    unname(coef(house_fe_model)["year::2007"])
+  )
+) |>
+  mutate(
+    `Change Index (Shortcut)` = 100 * `Log Index`,
+    `Change Index` = 100 * (exp(`Log Index`) - 1),
+    `Avg. Annual Growth` = 100 * (exp(`Log Index` / 17) - 1)
+  )
+
+flextable(index_comparison) |>
+  theme_booktabs() |>
+  font(fontname = "Times New Roman", part = "all") |>
+  fontsize(size = 12, part = "all") |>
+  colformat_double(j = 2:5, digits = 3) |>
+  colformat_double(j = c("Change Index (Shortcut)", "Change Index"), digits = 0) |>
+  align(j = "Model", align = "left", part = "all") |>
+  align(j = 2:5, align = "right", part = "all") |>
+  autofit() |>
+  save_as_docx(path = "answers/1.5b.docx")
+
