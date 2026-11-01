@@ -212,3 +212,89 @@ homeownership_by_age_plot <- ggplot(
   theme_minimal(base_family = "Times New Roman")
 
 ggsave("answers/3.2ii.png", plot = homeownership_by_age_plot)
+
+
+# 3.3
+
+cohort_model <- feols(homeowner ~ greatest_silent + genx + millenial, tenure_data)
+
+cohort_model_summary <- summary(cohort_model)
+cohort_coefficients <- cohort_model_summary$coeftable |>
+  as.data.frame() |>
+  tibble::rownames_to_column("Term") |>
+  mutate(Term = sub("TRUE$", "", Term))
+cohort_model_fit <- fitstat(cohort_model, c("rmse", "r2", "ar2"))
+
+flextable(cohort_coefficients) |>
+  theme_booktabs() |>
+  set_table_properties(opts_word = list(repeat_headers = FALSE)) |>
+  add_header_lines(values = c(
+    "OLS Model: Homeownership by Cohort",
+    paste("N =", format(cohort_model_summary$nobs, big.mark = ",")),
+    paste("Standard errors:", attr(cohort_model_summary$coeftable, "vcov_type"))
+  )) |>
+  set_header_labels(`Pr(>|t|)` = "P-value") |>
+  add_footer_lines(values = c(
+    "*** p < 0.001; ** p < 0.01; * p < 0.05; . p < 0.1",
+    sprintf("RMSE: %.4f", as.numeric(cohort_model_fit["rmse"])),
+    sprintf("R-squared: %.4f", as.numeric(cohort_model_fit["r2"])),
+    sprintf("Adjusted R-squared: %.4f", as.numeric(cohort_model_fit["ar2"]))
+  )) |>
+  font(fontname = "Times New Roman", part = "all") |>
+  fontsize(size = 12, part = "all") |>
+  fontsize(size = 10, part = "footer") |>
+  padding(padding.top = 0, padding.bottom = 0) |>
+  colformat_double(j = c("Estimate", "Std. Error", "t value"), digits = 4) |>
+  colformat_double(j = "Pr(>|t|)", digits = 3) |>
+  align(j = "Term", align = "left", part = "all") |>
+  align(i = 1:3, align = "right", part = "header") |>
+  align(j = c("Estimate", "Std. Error", "t value", "Pr(>|t|)"), align = "right", part = "all") |>
+  autofit() |>
+  save_as_docx(path = "answers/3.3a.docx")
+
+
+cohort_model_with_controls <- feols(
+  homeowner ~ greatest_silent + genx + millenial + 
+  log_income + married + vet + native_citizen,
+   tenure_data)
+
+cohort_model_with_controls_summary <- summary(cohort_model_with_controls)
+cohort_controls_coefficients <- cohort_model_with_controls_summary$coeftable |>
+  as.data.frame() |>
+  tibble::rownames_to_column("Term") |>
+  mutate(Term = sub("TRUE$", "", Term))
+cohort_controls_fit <- fitstat(cohort_model_with_controls, c("rmse", "r2", "ar2"))
+
+flextable(cohort_controls_coefficients) |>
+  theme_booktabs() |>
+  set_table_properties(opts_word = list(repeat_headers = FALSE)) |>
+  add_header_lines(values = c(
+    "OLS Model: Homeownership by Cohort with Controls",
+    paste("N =", format(cohort_model_with_controls_summary$nobs, big.mark = ",")),
+    paste(
+      "Standard errors:",
+      attr(cohort_model_with_controls_summary$coeftable, "vcov_type")
+    )
+  )) |>
+  set_header_labels(`Pr(>|t|)` = "P-value") |>
+  add_footer_lines(values = c(
+    "*** p < 0.001; ** p < 0.01; * p < 0.05; . p < 0.1",
+    sprintf("RMSE: %.3f", as.numeric(cohort_controls_fit["rmse"])),
+    sprintf("R-squared: %.3f", as.numeric(cohort_controls_fit["r2"])),
+    sprintf("Adjusted R-squared: %.3f", as.numeric(cohort_controls_fit["ar2"]))
+  )) |>
+  font(fontname = "Times New Roman", part = "all") |>
+  fontsize(size = 12, part = "all") |>
+  fontsize(size = 10, part = "footer") |>
+  padding(padding.top = 0, padding.bottom = 0) |>
+  colformat_double(j = c("Estimate", "Std. Error", "t value"), digits = 3) |>
+  colformat_double(j = "Pr(>|t|)", digits = 3) |>
+  align(j = "Term", align = "left", part = "all") |>
+  align(i = 1:3, align = "right", part = "header") |>
+  align(
+    j = c("Estimate", "Std. Error", "t value", "Pr(>|t|)"),
+    align = "right",
+    part = "all"
+  ) |>
+  autofit() |>
+  save_as_docx(path = "answers/3.3b.docx")
