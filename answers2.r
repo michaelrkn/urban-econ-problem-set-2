@@ -6,6 +6,8 @@ library(dplyr)
 library(ggplot2)
 library(fixest)
 
+source("helpers.r")
+
 options(tigris_use_cache = TRUE)
 
 # 2.1
@@ -109,7 +111,7 @@ quarter_index_summary <- price_indices |>
         filter(yearq == lubridate::yq(quarter)) |>
         pull(index)
     }
-    format_number <- function(value, digits = 1) {
+    format_number <- function(value, digits = WORD_TABLE_ONE_DECIMAL_PLACE) {
       format(round(value, digits), big.mark = ",", nsmall = digits, trim = TRUE)
     }
     percent_change <- function(start, end) {
@@ -154,8 +156,7 @@ quarter_index_summary <- price_indices |>
   arrange(Metric) |>
   mutate(Metric = as.character(Metric))
 
-flextable(quarter_index_summary) |>
-  theme_booktabs() |>
+new_word_table(quarter_index_summary) |>
   set_header_labels(
     Metric = "",
     cook = "Cook",
@@ -165,13 +166,9 @@ flextable(quarter_index_summary) |>
     palatinebarrington = "Palatine/Barrington",
     calumetcityharvey = "Calumet City/Harvey"
   ) |>
-  font(fontname = "Times New Roman", part = "all") |>
-  fontsize(size = 10, part = "all") |>
-  fontsize(size = 9, part = "footer") |>
   align(j = "Metric", align = "left", part = "all") |>
   align(j = target_submarkets, align = "center", part = "all") |>
-  autofit() |>
-  save_as_docx(path = "answers/2.3.docx")
+  save_word_table("answers/2.3.docx")
 
 
 # 2.5
@@ -368,27 +365,19 @@ decline_coefficients <- decline_summary$coeftable |>
   tibble::rownames_to_column("Term")
 decline_fit <- fixest::fitstat(decline_regression, c("r2", "ar2", "rmse"))
 
-flextable(decline_coefficients) |>
-  theme_booktabs() |>
-  add_header_lines(values = c(
-    "OLS regression: Peak-to-trough decline",
-    paste("Observations:", format(decline_summary$nobs, big.mark = ","))
+new_word_table(decline_coefficients) |>
+  add_regression_header(
+    n = decline_summary$nobs,
+    title = "OLS regression: Peak-to-trough decline",
+    vcov_type = attr(decline_summary$coeftable, "vcov_type")
+  ) |>
+  add_regression_footer(fit_stats = c(
+    "RMSE" = decline_fit["rmse"],
+    "R-squared" = decline_fit["r2"],
+    "Adjusted R-squared" = decline_fit["ar2"]
   )) |>
-  set_header_labels(`Pr(>|t|)` = "P-value") |>
-  add_footer_lines(values = c(
-    sprintf("R-squared: %.3f", as.numeric(decline_fit["r2"])),
-    sprintf("Adjusted R-squared: %.3f", as.numeric(decline_fit["ar2"])),
-    sprintf("RMSE: %.3f", as.numeric(decline_fit["rmse"]))
-  )) |>
-  font(fontname = "Times New Roman", part = "all") |>
-  fontsize(size = 12, part = "all") |>
-  fontsize(size = 10, part = "footer") |>
-  colformat_double(j = c("Estimate", "Std. Error", "t value"), digits = 3) |>
-  colformat_double(j = "Pr(>|t|)", digits = 3) |>
-  align(j = "Term", align = "left", part = "all") |>
-  align(j = c("Estimate", "Std. Error", "t value", "Pr(>|t|)"), align = "right", part = "all") |>
-  autofit() |>
-  save_as_docx(path = "answers/2.5.docx")
+  format_regression_table() |>
+  save_word_table("answers/2.5.docx")
 
 
 # 2.7

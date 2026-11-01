@@ -5,6 +5,8 @@ library(dplyr)
 library(ggplot2)
 library(fixest)
 
+source("helpers.r")
+
 price_data <- read_dta("data/price_data.dta")
 
 # 1.1
@@ -24,7 +26,7 @@ naive <- price_data |>
 
 naive |>
   mutate(year = as.character(year)) |>
-  flextable() |>
+  new_word_table() |>
   set_header_labels(
     year = "Year",
     mean_price = "Mean Price",
@@ -34,13 +36,10 @@ naive |>
     naive_mean_index = "Naive Mean Log Price Index",
     naive_median_index = "Naive Median Log Price Index"
   ) |>
-  colformat_double(j = c("mean_price", "median_price", "naive_mean_index", "naive_median_index"), digits = 0, prefix = "$") |>
-  colformat_double(j = c("mean_bathrooms"), digits = 1) |>
-  colformat_double(j = c("mean_sf"), digits = 0) |>
-  font(fontname = "Times New Roman", part = "all") |>
-  fontsize(size = 12, part = "all") |>
-  autofit() |>
-  save_as_docx(path = "answers/1.1.docx")
+  format_word_currency(j = c("mean_price", "median_price", "naive_mean_index", "naive_median_index")) |>
+  format_word_number(j = "mean_bathrooms", digits = WORD_TABLE_ONE_DECIMAL_PLACE) |>
+  format_word_number(j = "mean_sf", digits = WORD_TABLE_WHOLE_NUMBER_DECIMAL_PLACES) |>
+  save_word_table("answers/1.1.docx")
 
 naive_plot <- naive |>
   ggplot(aes(x = year)) +
@@ -74,32 +73,23 @@ model_summary <- summary(hedonic_model)
 coefficient_table <- model_summary$coeftable |>
   as.data.frame() |>
   tibble::rownames_to_column("Term")
-model_fit <- fitstat(hedonic_model, c("rmse", "ar2"))
+model_fit <- fitstat(hedonic_model, c("rmse", "r2", "ar2"))
 
-flextable(coefficient_table) |>
-  theme_booktabs() |>
-  set_table_properties(opts_word = list(repeat_headers = FALSE)) |>
-  add_header_lines(values = c(
-    paste("N = ", format(model_summary$nobs, big.mark = ",")),
-    paste("Standard errors:", attr(model_summary$coeftable, "vcov_type"))
-  )) |>
-  set_header_labels(`Pr(>|t|)` = "P-value") |>
-  add_footer_lines(values = c(
-    "*** p < 0.001; ** p < 0.01; * p < 0.05; . p < 0.1",
-    sprintf("RMSE: %.6f", as.numeric(model_fit["rmse"])),
-    sprintf("Adj. R-squared: %.6f", as.numeric(model_fit["ar2"]))
-  )) |>
-  font(fontname = "Times New Roman", part = "all") |>
-  fontsize(size = 12, part = "all") |>
-  fontsize(size = 10, part = "footer") |>
-  padding(padding.top = 0, padding.bottom = 0) |>
-  colformat_double(j = c("Estimate", "Std. Error", "t value"), digits = 2) |>
-  colformat_double(j = "Pr(>|t|)", digits = 3) |>
-  align(j = "Term", align = "left", part = "all") |>
-  align(i = 1:2, align = "right", part = "header") |>
-  align(j = c("Estimate", "Std. Error", "t value", "Pr(>|t|)"), align = "right", part = "all") |>
-  autofit() |>
-  save_as_docx(path = "answers/1.2.docx")
+new_word_table(coefficient_table) |>
+  add_regression_header(
+    n = model_summary$nobs,
+    title = "OLS Model: Hedonic Index",
+    vcov_type = attr(model_summary$coeftable, "vcov_type")
+  ) |>
+  add_regression_footer(
+    fit_stats = c(
+      "RMSE" = model_fit["rmse"],
+      "R-squared" = model_fit["r2"],
+      "Adjusted R-squared" = model_fit["ar2"]
+    )
+  ) |>
+  format_regression_table() |>
+  save_word_table("answers/1.2.docx")
 
 hedonic_log_index <- fixest::iplot(
   hedonic_model,
@@ -220,22 +210,19 @@ repeat_sale_comparison |>
       )
     )
   ) |>
-  flextable() |>
+  new_word_table() |>
   set_header_labels(
     Measure = "",
     `Single Sale` = "Single Sale",
     `Multiple Sales` = "Multiple Sales"
   ) |>
-  colformat_double(j = c("Single Sale", "Multiple Sales"), digits = 3) |>
-  colformat_double(i = ~ Measure == "Mean sqft2", j = c("Single Sale", "Multiple Sales"), digits = 0, big.mark = ",") |>
-  colformat_double(i = ~ Measure == "Mean median income", j = c("Single Sale", "Multiple Sales"), digits = 0, big.mark = ",", prefix = "$") |>
-  colformat_double(i = ~ Measure %in% c("Mean Black share", "Mean Hispanic share", "Mean Asian share"), j = c("Single Sale", "Multiple Sales"), digits = 1, suffix = "%") |>
-  font(fontname = "Times New Roman", part = "all") |>
-  fontsize(size = 12, part = "all") |>
+  format_word_number(j = c("Single Sale", "Multiple Sales")) |>
+  format_word_number(i = ~ Measure == "Mean sqft2", j = c("Single Sale", "Multiple Sales"), digits = WORD_TABLE_WHOLE_NUMBER_DECIMAL_PLACES, big.mark = ",") |>
+  format_word_currency(i = ~ Measure == "Mean median income", j = c("Single Sale", "Multiple Sales")) |>
+  format_word_percent(i = ~ Measure %in% c("Mean Black share", "Mean Hispanic share", "Mean Asian share"), j = c("Single Sale", "Multiple Sales")) |>
   align(j = "Measure", align = "left", part = "all") |>
   align(j = c("Single Sale", "Multiple Sales"), align = "right", part = "all") |>
-  autofit() |>
-  save_as_docx(path = "answers/1.4.docx")
+  save_word_table("answers/1.4.docx")
 
 
 # 1.5
@@ -304,16 +291,12 @@ index_comparison <- tibble::tibble(
     `Avg. Annual Growth` = 100 * (exp(`Log Index` / 17) - 1)
   )
 
-flextable(index_comparison) |>
-  theme_booktabs() |>
-  font(fontname = "Times New Roman", part = "all") |>
-  fontsize(size = 12, part = "all") |>
-  colformat_double(j = 2:5, digits = 3) |>
-  colformat_double(j = c("Change Index (Shortcut)", "Change Index"), digits = 0) |>
+new_word_table(index_comparison) |>
+  format_word_number(j = 2:5) |>
+  format_word_number(j = c("Change Index (Shortcut)", "Change Index"), digits = WORD_TABLE_WHOLE_NUMBER_DECIMAL_PLACES) |>
   align(j = "Model", align = "left", part = "all") |>
   align(j = 2:5, align = "right", part = "all") |>
-  autofit() |>
-  save_as_docx(path = "answers/1.5b.docx")
+  save_word_table("answers/1.5b.docx")
 
 
 # 1.6
@@ -393,14 +376,16 @@ quarterly_sales_summary <- price_data |>
     values_to = "Sales"
   )
 
-flextable(quarterly_sales_summary) |>
-  theme_booktabs() |>
-  font(fontname = "Times New Roman", part = "all") |>
-  fontsize(size = 12, part = "all") |>
-  colformat_double(j = "Sales", digits = 1, big.mark = ",") |>
+new_word_table(quarterly_sales_summary) |>
+  format_word_number(j = "Sales", digits = WORD_TABLE_ONE_DECIMAL_PLACE, big.mark = ",") |>
+  format_word_number(
+    i = ~ Statistic %in% c("Minimum", "Maximum"),
+    j = "Sales",
+    digits = WORD_TABLE_WHOLE_NUMBER_DECIMAL_PLACES,
+    big.mark = ","
+  ) |>
   align(j = "Sales", align = "right", part = "all") |>
-  autofit() |>
-  save_as_docx(path = "answers/1.6.docx")
+  save_word_table("answers/1.6.docx")
 
 
 # 1.7

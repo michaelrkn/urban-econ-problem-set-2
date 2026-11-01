@@ -5,6 +5,8 @@ library(dplyr)
 library(ggplot2)
 library(fixest)
 
+source("helpers.r")
+
 tenure_data <- read_dta("data/tenure_choice.dta")
 
 
@@ -68,28 +70,21 @@ demographic_data <- bind_rows(
     native_citizen = "Proportion Native Citizen"
   ))
 
-flextable(demographic_data) |>
-  theme_booktabs() |>
+new_word_table(demographic_data) |>
   set_header_labels(Variable = "", `Full Sample` = "Full Sample") |>
-  colformat_double(j = c("Full Sample", "Homeowners", "Renters"), digits = 2) |>
-  colformat_double(
+  format_word_number(j = c("Full Sample", "Homeowners", "Renters")) |>
+  format_word_number(
     j = c("Full Sample", "Homeowners", "Renters"),
     i = which(demographic_data$Variable == "Age"),
-    digits = 0
+    digits = WORD_TABLE_WHOLE_NUMBER_DECIMAL_PLACES
   ) |>
-  colformat_double(
+  format_word_currency(
     j = c("Full Sample", "Homeowners", "Renters"),
-    i = which(demographic_data$Variable == "Household Income"),
-    digits = 0,
-    big.mark = ",",
-    prefix = "$"
+    i = which(demographic_data$Variable == "Household Income")
   ) |>
-  font(fontname = "Times New Roman", part = "all") |>
-  fontsize(size = 12, part = "all") |>
   align(j = "Variable", align = "left", part = "all") |>
   align(j = c("Full Sample", "Homeowners", "Renters"), align = "right", part = "all") |>
-  autofit() |>
-  save_as_docx(path = "answers/3.2a.docx")
+  save_word_table("answers/3.2a.docx")
 
   cohort_percentages <- tenure_data |>
     summarise(across(
@@ -109,16 +104,12 @@ flextable(demographic_data) |>
       millenial = "Millennials"
     ))
 
-  flextable(cohort_percentages) |>
-    theme_booktabs() |>
+  new_word_table(cohort_percentages) |>
     set_header_labels(`Cohort` = "Cohort") |>
-    colformat_double(j = "Percent", digits = 1, suffix = "%") |>
-    font(fontname = "Times New Roman", part = "all") |>
-    fontsize(size = 12, part = "all") |>
+    format_word_percent(j = "Percent") |>
     align(j = "Cohort", align = "left", part = "all") |>
     align(j = "Percent", align = "right", part = "all") |>
-    autofit() |>
-    save_as_docx(path = "answers/3.2b.docx")
+    save_word_table("answers/3.2b.docx")
 
 income_percentiles <- tibble::tibble(
   Percentile = c("10th", "25th", "50th", "75th", "90th"),
@@ -129,15 +120,11 @@ income_percentiles <- tibble::tibble(
   ))
 )
 
-flextable(income_percentiles) |>
-  theme_booktabs() |>
-  colformat_double(j = "Household Income", digits = 0, big.mark = ",", prefix = "$" ) |>
-  font(fontname = "Times New Roman", part = "all") |>
-  fontsize(size = 12, part = "all") |>
+new_word_table(income_percentiles) |>
+  format_word_currency(j = "Household Income") |>
   align(j = "Percentile", align = "left", part = "all") |>
   align(j = "Household Income", align = "right", part = "all") |>
-  autofit() |>
-  save_as_docx(path = "answers/3.2c.docx")
+  save_word_table("answers/3.2c.docx")
 
 log_income_density <- ggplot(tenure_data, aes(x = log_income)) +
   geom_density() +
@@ -225,32 +212,19 @@ cohort_coefficients <- cohort_model_summary$coeftable |>
   mutate(Term = sub("TRUE$", "", Term))
 cohort_model_fit <- fitstat(cohort_model, c("rmse", "r2", "ar2"))
 
-flextable(cohort_coefficients) |>
-  theme_booktabs() |>
-  set_table_properties(opts_word = list(repeat_headers = FALSE)) |>
-  add_header_lines(values = c(
-    "OLS Model: Homeownership by Cohort",
-    paste("N =", format(cohort_model_summary$nobs, big.mark = ",")),
-    paste("Standard errors:", attr(cohort_model_summary$coeftable, "vcov_type"))
+new_word_table(cohort_coefficients) |>
+  add_regression_header(
+    n = cohort_model_summary$nobs,
+    title = "OLS Model: Homeownership by Cohort",
+    vcov_type = attr(cohort_model_summary$coeftable, "vcov_type")
+  ) |>
+  add_regression_footer(fit_stats = c(
+    "RMSE" = cohort_model_fit["rmse"],
+    "R-squared" = cohort_model_fit["r2"],
+    "Adjusted R-squared" = cohort_model_fit["ar2"]
   )) |>
-  set_header_labels(`Pr(>|t|)` = "P-value") |>
-  add_footer_lines(values = c(
-    "*** p < 0.001; ** p < 0.01; * p < 0.05; . p < 0.1",
-    sprintf("RMSE: %.4f", as.numeric(cohort_model_fit["rmse"])),
-    sprintf("R-squared: %.4f", as.numeric(cohort_model_fit["r2"])),
-    sprintf("Adjusted R-squared: %.4f", as.numeric(cohort_model_fit["ar2"]))
-  )) |>
-  font(fontname = "Times New Roman", part = "all") |>
-  fontsize(size = 12, part = "all") |>
-  fontsize(size = 10, part = "footer") |>
-  padding(padding.top = 0, padding.bottom = 0) |>
-  colformat_double(j = c("Estimate", "Std. Error", "t value"), digits = 4) |>
-  colformat_double(j = "Pr(>|t|)", digits = 3) |>
-  align(j = "Term", align = "left", part = "all") |>
-  align(i = 1:3, align = "right", part = "header") |>
-  align(j = c("Estimate", "Std. Error", "t value", "Pr(>|t|)"), align = "right", part = "all") |>
-  autofit() |>
-  save_as_docx(path = "answers/3.3a.docx")
+  format_regression_table() |>
+  save_word_table("answers/3.3a.docx")
 
 
 cohort_model_with_controls <- feols(
@@ -265,39 +239,19 @@ cohort_controls_coefficients <- cohort_model_with_controls_summary$coeftable |>
   mutate(Term = sub("TRUE$", "", Term))
 cohort_controls_fit <- fitstat(cohort_model_with_controls, c("rmse", "r2", "ar2"))
 
-flextable(cohort_controls_coefficients) |>
-  theme_booktabs() |>
-  set_table_properties(opts_word = list(repeat_headers = FALSE)) |>
-  add_header_lines(values = c(
-    "OLS Model: Homeownership by Cohort with Controls",
-    paste("N =", format(cohort_model_with_controls_summary$nobs, big.mark = ",")),
-    paste(
-      "Standard errors:",
-      attr(cohort_model_with_controls_summary$coeftable, "vcov_type")
-    )
-  )) |>
-  set_header_labels(`Pr(>|t|)` = "P-value") |>
-  add_footer_lines(values = c(
-    "*** p < 0.001; ** p < 0.01; * p < 0.05; . p < 0.1",
-    sprintf("RMSE: %.3f", as.numeric(cohort_controls_fit["rmse"])),
-    sprintf("R-squared: %.3f", as.numeric(cohort_controls_fit["r2"])),
-    sprintf("Adjusted R-squared: %.3f", as.numeric(cohort_controls_fit["ar2"]))
-  )) |>
-  font(fontname = "Times New Roman", part = "all") |>
-  fontsize(size = 12, part = "all") |>
-  fontsize(size = 10, part = "footer") |>
-  padding(padding.top = 0, padding.bottom = 0) |>
-  colformat_double(j = c("Estimate", "Std. Error", "t value"), digits = 3) |>
-  colformat_double(j = "Pr(>|t|)", digits = 3) |>
-  align(j = "Term", align = "left", part = "all") |>
-  align(i = 1:3, align = "right", part = "header") |>
-  align(
-    j = c("Estimate", "Std. Error", "t value", "Pr(>|t|)"),
-    align = "right",
-    part = "all"
+new_word_table(cohort_controls_coefficients) |>
+  add_regression_header(
+    n = cohort_model_with_controls_summary$nobs,
+    title = "OLS Model: Homeownership by Cohort with Controls",
+    vcov_type = attr(cohort_model_with_controls_summary$coeftable, "vcov_type")
   ) |>
-  autofit() |>
-  save_as_docx(path = "answers/3.3b.docx")
+  add_regression_footer(fit_stats = c(
+    "RMSE" = cohort_controls_fit["rmse"],
+    "R-squared" = cohort_controls_fit["r2"],
+    "Adjusted R-squared" = cohort_controls_fit["ar2"]
+  )) |>
+  format_regression_table() |>
+  save_word_table("answers/3.3b.docx")
 
 
 # 3.4
@@ -350,19 +304,14 @@ cohort_predictions <- cohort_prediction_data |>
   ) |>
   select(Cohort, `25th Percentile Income`, `90th Percentile Income`)
 
-flextable(cohort_predictions) |>
-  theme_booktabs() |>
+new_word_table(cohort_predictions) |>
   add_header_lines(values = "Predicted Homeownership Rate by Cohort") |>
   set_header_labels(
     Cohort = "Cohort",
     `25th Percentile Income` = "25th Percentile Income",
     `90th Percentile Income` = "90th Percentile Income"
   ) |>
-  colformat_double(
-    j = c("25th Percentile Income", "90th Percentile Income"),
-    digits = 1,
-    suffix = "%"
-  ) |>
+  format_word_percent(j = c("25th Percentile Income", "90th Percentile Income")) |>
   add_footer_lines(values = c(
     sprintf(
       "Married and native-born; veteran status held at sample mean (%.1f%%)",
@@ -374,21 +323,13 @@ flextable(cohort_predictions) |>
       format(income_reference[[2]], big.mark = ",", scientific = FALSE)
     )
   )) |>
-  font(fontname = "Times New Roman", part = "all") |>
-  fontsize(size = 12, part = "all") |>
-  fontsize(size = 12, part = "header") |>
-  border_inner_h(
-    border = officer::fp_border(color = "white", width = 0),
-    part = "header"
-  ) |>
   align(j = "Cohort", align = "left", part = "all") |>
   align(
     j = c("25th Percentile Income", "90th Percentile Income"),
     align = "right",
     part = "all"
   ) |>
-  autofit() |>
-  save_as_docx(path = "answers/3.4.docx")
+  save_word_table("answers/3.4.docx")
 
 
 # 3.5
@@ -408,42 +349,19 @@ cohort_logit_coefficients <- cohort_model_logit_summary$coeftable |>
   mutate(Term = sub("TRUE$", "", Term))
 cohort_logit_fit <- fitstat(cohort_model_logit, c("ll", "pr2", "aic"))
 
-flextable(cohort_logit_coefficients) |>
-  theme_booktabs() |>
-  set_table_properties(opts_word = list(repeat_headers = FALSE)) |>
-  add_header_lines(values = c(
-    "Logit Model: Homeownership by Cohort with Controls",
-    paste("N =", format(cohort_model_logit_summary$nobs, big.mark = ",")),
-    paste(
-      "Standard errors:",
-      attr(cohort_model_logit_summary$coeftable, "vcov_type")
-    )
-  )) |>
-  set_header_labels(`Pr(>|z|)` = "P-value") |>
-  add_footer_lines(values = c(
-    "*** p < 0.001; ** p < 0.01; * p < 0.05; . p < 0.1",
-    sprintf("Log-likelihood: %.3f", as.numeric(cohort_logit_fit["ll"])),
-    sprintf("Pseudo R-squared: %.3f", as.numeric(cohort_logit_fit["pr2"])),
-    sprintf("AIC: %.3f", as.numeric(cohort_logit_fit["aic"]))
-  )) |>
-  font(fontname = "Times New Roman", part = "all") |>
-  fontsize(size = 12, part = "all") |>
-  fontsize(size = 10, part = "footer") |>
-  padding(padding.top = 0, padding.bottom = 0) |>
-  colformat_double(
-    j = c("Estimate", "Std. Error", "z value"),
-    digits = 3
+new_word_table(cohort_logit_coefficients) |>
+  add_regression_header(
+    n = cohort_model_logit_summary$nobs,
+    title = "Logit Model: Homeownership by Cohort with Controls",
+    vcov_type = attr(cohort_model_logit_summary$coeftable, "vcov_type")
   ) |>
-  colformat_double(j = "Pr(>|z|)", digits = 3) |>
-  align(j = "Term", align = "left", part = "all") |>
-  align(i = 1:3, align = "right", part = "header") |>
-  align(
-    j = c("Estimate", "Std. Error", "z value", "Pr(>|z|)"),
-    align = "right",
-    part = "all"
-  ) |>
-  autofit() |>
-  save_as_docx(path = "answers/3.5.docx")
+  add_regression_footer(fit_stats = c(
+    "Log-likelihood" = cohort_logit_fit["ll"],
+    "Pseudo R-squared" = cohort_logit_fit["pr2"],
+    "AIC" = cohort_logit_fit["aic"]
+  )) |>
+  format_regression_table() |>
+  save_word_table("answers/3.5.docx")
 
 cohort_controls_logit_slopes <- marginaleffects::avg_slopes(cohort_model_logit) |>
   as.data.frame() |>
@@ -452,26 +370,10 @@ cohort_controls_comparison <- cohort_controls_coefficients |>
   left_join(cohort_controls_logit_slopes, by = "Term") |>
   select(Term, `LPM Estimate` = Estimate, `Logit Avg Marginal Effect`)
 
-flextable(cohort_controls_comparison) |>
-  theme_booktabs() |>
-  set_table_properties(opts_word = list(repeat_headers = FALSE)) |>
+new_word_table(cohort_controls_comparison) |>
   add_header_lines(values = "LPM Estimates and Logit Average Marginal Effects") |>
-  font(fontname = "Times New Roman", part = "all") |>
-  fontsize(size = 12, part = "all") |>
-  padding(padding.top = 0, padding.bottom = 0) |>
-  colformat_double(
-    j = c("LPM Estimate", "Logit Avg Marginal Effect"),
-    digits = 3
-  ) |>
-  align(j = "Term", align = "left", part = "all") |>
-  align(i = 1, align = "right", part = "header") |>
-  align(
-    j = c("LPM Estimate", "Logit Avg Marginal Effect"),
-    align = "right",
-    part = "all"
-  ) |>
-  autofit() |>
-  save_as_docx(path = "answers/3.5b.docx")
+  format_regression_table() |>
+  save_word_table("answers/3.5b.docx")
 
 cohort_logit_predictions <- cohort_prediction_data |>
   mutate(
@@ -504,19 +406,14 @@ cohort_logit_predictions <- cohort_prediction_data |>
   ) |>
   select(Cohort, `25th Percentile Income`, `90th Percentile Income`)
 
-flextable(cohort_logit_predictions) |>
-  theme_booktabs() |>
+new_word_table(cohort_logit_predictions) |>
   add_header_lines(values = "Logit-Predicted Homeownership Rate by Cohort") |>
   set_header_labels(
     Cohort = "Cohort",
     `25th Percentile Income` = "25th Percentile Income",
     `90th Percentile Income` = "90th Percentile Income"
   ) |>
-  colformat_double(
-    j = c("25th Percentile Income", "90th Percentile Income"),
-    digits = 1,
-    suffix = "%"
-  ) |>
+  format_word_percent(j = c("25th Percentile Income", "90th Percentile Income")) |>
   add_footer_lines(values = c(
     sprintf(
       "Married and native-born; veteran status held at sample mean (%.1f%%)",
@@ -528,21 +425,13 @@ flextable(cohort_logit_predictions) |>
       format(income_reference[[2]], big.mark = ",", scientific = FALSE)
     )
   )) |>
-  font(fontname = "Times New Roman", part = "all") |>
-  fontsize(size = 12, part = "all") |>
-  fontsize(size = 12, part = "header") |>
-  border_inner_h(
-    border = officer::fp_border(color = "white", width = 0),
-    part = "header"
-  ) |>
   align(j = "Cohort", align = "left", part = "all") |>
   align(
     j = c("25th Percentile Income", "90th Percentile Income"),
     align = "right",
     part = "all"
   ) |>
-  autofit() |>
-  save_as_docx(path = "answers/3.5c.docx")
+  save_word_table("answers/3.5c.docx")
 
 
 # 3.6
@@ -579,39 +468,19 @@ cohort_interactions_fit <- fitstat(
   c("ll", "pr2", "aic")
 )
 
-flextable(cohort_interactions_coefficients) |>
-  theme_booktabs() |>
-  set_table_properties(opts_word = list(repeat_headers = FALSE)) |>
-  add_header_lines(values = c(
-    "Logit Model: Homeownership by Cohort and Income Interactions",
-    paste("N =", format(cohort_interactions_summary$nobs, big.mark = ",")),
-    paste(
-      "Standard errors:",
-      attr(cohort_interactions_summary$coeftable, "vcov_type")
-    )
-  )) |>
-  set_header_labels(`Pr(>|z|)` = "P-value") |>
-  add_footer_lines(values = c(
-    "*** p < 0.001; ** p < 0.01; * p < 0.05; . p < 0.1",
-    sprintf("Log-likelihood: %.3f", as.numeric(cohort_interactions_fit["ll"])),
-    sprintf("Pseudo R-squared: %.3f", as.numeric(cohort_interactions_fit["pr2"])),
-    sprintf("AIC: %.3f", as.numeric(cohort_interactions_fit["aic"]))
-  )) |>
-  font(fontname = "Times New Roman", part = "all") |>
-  fontsize(size = 12, part = "all") |>
-  fontsize(size = 10, part = "footer") |>
-  padding(padding.top = 0, padding.bottom = 0) |>
-  colformat_double(j = c("Estimate", "Std. Error", "z value"), digits = 3) |>
-  colformat_double(j = "Pr(>|z|)", digits = 3) |>
-  align(j = "Term", align = "left", part = "all") |>
-  align(i = 1:3, align = "right", part = "header") |>
-  align(
-    j = c("Estimate", "Std. Error", "z value", "Pr(>|z|)"),
-    align = "right",
-    part = "all"
+new_word_table(cohort_interactions_coefficients) |>
+  add_regression_header(
+    n = cohort_interactions_summary$nobs,
+    title = "Logit Model: Homeownership by Cohort and Income Interactions",
+    vcov_type = attr(cohort_interactions_summary$coeftable, "vcov_type")
   ) |>
-  autofit() |>
-  save_as_docx(path = "answers/3.6.docx")
+  add_regression_footer(fit_stats = c(
+    "Log-likelihood" = cohort_interactions_fit["ll"],
+    "Pseudo R-squared" = cohort_interactions_fit["pr2"],
+    "AIC" = cohort_interactions_fit["aic"]
+  )) |>
+  format_regression_table() |>
+  save_word_table("answers/3.6.docx")
 
 
 cohort_interactions_wald <- fixest::wald(
@@ -702,43 +571,22 @@ citizenship_comparison <- citizenship_coefficients |>
 
 citizenship_model_fit <- fitstat(citizenship_homeownership, c("ll", "pr2", "aic"))
 
-flextable(citizenship_comparison) |>
-  theme_booktabs() |>
-  set_table_properties(opts_word = list(repeat_headers = FALSE)) |>
-  add_header_lines(values = c(
-    "Logit Model: Homeownership by Citizenship",
-    paste("N =", format(citizenship_homeownership_summary$nobs, big.mark = ",")),
-    paste(
-      "Standard errors:",
-      attr(citizenship_homeownership_summary$coeftable, "vcov_type")
-    )
-  )) |>
-  set_header_labels(`Pr(>|z|)` = "P-value") |>
-  add_footer_lines(values = c(
-    "*** p < 0.001; ** p < 0.01; * p < 0.05; . p < 0.1",
-    "Average marginal effects are on the probability scale; the intercept has no slope.",
-    sprintf("Log-likelihood: %.3f", as.numeric(citizenship_model_fit["ll"])),
-    sprintf("Pseudo R-squared: %.3f", as.numeric(citizenship_model_fit["pr2"])),
-    sprintf("AIC: %.3f", as.numeric(citizenship_model_fit["aic"]))
-  )) |>
-  font(fontname = "Times New Roman", part = "all") |>
-  fontsize(size = 12, part = "all") |>
-  fontsize(size = 10, part = "footer") |>
-  padding(padding.top = 0, padding.bottom = 0) |>
-  colformat_double(
-    j = c("Estimate", "Avg Marginal Effect", "Std. Error", "z value"),
-    digits = 3
+new_word_table(citizenship_comparison) |>
+  add_regression_header(
+    n = citizenship_homeownership_summary$nobs,
+    title = "Logit Model: Homeownership by Citizenship",
+    vcov_type = attr(citizenship_homeownership_summary$coeftable, "vcov_type")
   ) |>
-  colformat_double(j = "Pr(>|z|)", digits = 3) |>
-  align(j = "Term", align = "left", part = "all") |>
-  align(i = 1:3, align = "right", part = "header") |>
-  align(
-    j = c("Estimate", "Avg Marginal Effect", "Std. Error", "z value", "Pr(>|z|)"),
-    align = "right",
-    part = "all"
+  add_regression_footer(
+    fit_stats = c(
+      "Log-likelihood" = citizenship_model_fit["ll"],
+      "Pseudo R-squared" = citizenship_model_fit["pr2"],
+      "AIC" = citizenship_model_fit["aic"]
+    ),
+    extra_lines = "Average marginal effects are on the probability scale; the intercept has no slope."
   ) |>
-  autofit() |>
-  save_as_docx(path = "answers/3.7.docx")
+  format_regression_table() |>
+  save_word_table("answers/3.7.docx")
 
 citizenship_cohort_data <- tenure_data |>
   mutate(
@@ -785,8 +633,7 @@ citizenship_cohort_predictions <- citizenship_cohort_data |>
   )) |>
   ungroup()
 
-flextable(citizenship_cohort_predictions) |>
-  theme_booktabs() |>
+new_word_table(citizenship_cohort_predictions) |>
   add_header_lines(values = "Predicted Homeownership Rate by Cohort and Citizenship") |>
   set_header_labels(
     Cohort = "Cohort",
@@ -795,22 +642,16 @@ flextable(citizenship_cohort_predictions) |>
     naturalized_citizen = "Naturalized Citizen",
     noncitizen = "Noncitizen"
   ) |>
-  colformat_double(
-    j = c("native_citizen", "abroad_citizen", "naturalized_citizen", "noncitizen"),
-    digits = 1,
-    suffix = "%"
+  format_word_percent(
+    j = c("native_citizen", "abroad_citizen", "naturalized_citizen", "noncitizen")
   ) |>
   add_footer_lines(values = paste(
     "Predictions used the average of each cohort's observed log income, marital status, and veteran status."
   )) |>
-  font(fontname = "Times New Roman", part = "all") |>
-  fontsize(size = 12, part = "all") |>
-  fontsize(size = 10, part = "footer") |>
   align(j = "Cohort", align = "left", part = "all") |>
   align(
     j = c("native_citizen", "abroad_citizen", "naturalized_citizen", "noncitizen"),
     align = "right",
     part = "all"
   ) |>
-  autofit() |>
-  save_as_docx(path = "answers/3.7b.docx")
+  save_word_table("answers/3.7b.docx")
