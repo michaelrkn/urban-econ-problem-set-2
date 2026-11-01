@@ -544,3 +544,134 @@ flextable(cohort_logit_predictions) |>
   autofit() |>
   save_as_docx(path = "answers/3.5c.docx")
 
+
+# 3.6
+
+cohort_interactions_model_logit <- feglm(
+  homeowner ~ greatest_silent*log_income + genx*log_income
+  + millenial*log_income + married + vet + native_citizen,
+  family = binomial(link = "logit"),
+  data = tenure_data
+)
+
+cohort_interactions_summary <- summary(cohort_interactions_model_logit)
+cohort_interactions_coefficients <- cohort_interactions_summary$coeftable |>
+  as.data.frame() |>
+  tibble::rownames_to_column("Term") |>
+  mutate(Term = gsub("TRUE", "", Term)) |>
+  mutate(Term = factor(Term, levels = c(
+    "(Intercept)",
+    "greatest_silent",
+    "genx",
+    "millenial",
+    "greatest_silent:log_income",
+    "log_income:genx",
+    "log_income:millenial",
+    "log_income",
+    "married",
+    "vet",
+    "native_citizen"
+  ))) |>
+  arrange(Term) |>
+  mutate(Term = as.character(Term))
+cohort_interactions_fit <- fitstat(
+  cohort_interactions_model_logit,
+  c("ll", "pr2", "aic")
+)
+
+flextable(cohort_interactions_coefficients) |>
+  theme_booktabs() |>
+  set_table_properties(opts_word = list(repeat_headers = FALSE)) |>
+  add_header_lines(values = c(
+    "Logit Model: Homeownership by Cohort and Income Interactions",
+    paste("N =", format(cohort_interactions_summary$nobs, big.mark = ",")),
+    paste(
+      "Standard errors:",
+      attr(cohort_interactions_summary$coeftable, "vcov_type")
+    )
+  )) |>
+  set_header_labels(`Pr(>|z|)` = "P-value") |>
+  add_footer_lines(values = c(
+    "*** p < 0.001; ** p < 0.01; * p < 0.05; . p < 0.1",
+    sprintf("Log-likelihood: %.3f", as.numeric(cohort_interactions_fit["ll"])),
+    sprintf("Pseudo R-squared: %.3f", as.numeric(cohort_interactions_fit["pr2"])),
+    sprintf("AIC: %.3f", as.numeric(cohort_interactions_fit["aic"]))
+  )) |>
+  font(fontname = "Times New Roman", part = "all") |>
+  fontsize(size = 12, part = "all") |>
+  fontsize(size = 10, part = "footer") |>
+  padding(padding.top = 0, padding.bottom = 0) |>
+  colformat_double(j = c("Estimate", "Std. Error", "z value"), digits = 3) |>
+  colformat_double(j = "Pr(>|z|)", digits = 3) |>
+  align(j = "Term", align = "left", part = "all") |>
+  align(i = 1:3, align = "right", part = "header") |>
+  align(
+    j = c("Estimate", "Std. Error", "z value", "Pr(>|z|)"),
+    align = "right",
+    part = "all"
+  ) |>
+  autofit() |>
+  save_as_docx(path = "answers/3.6.docx")
+
+
+cohort_interactions_wald <- fixest::wald(
+  cohort_interactions_model_logit,
+  keep = "greatest_silentTRUE:log_income|log_income:genxTRUE|log_income:millenialTRUE"
+)
+
+
+cohort_income_range <- quantile(
+  tenure_data$hhincome,
+  probs = c(0.01, 0.99),
+  na.rm = TRUE
+)
+
+cohort_income_grid <- tidyr::expand_grid(
+  Cohort = factor(
+    c("Greatest/Silent Generations", "Baby Boomers", "Generation X", "Millennials"),
+    levels = c("Greatest/Silent Generations", "Baby Boomers", "Generation X", "Millennials")
+  ),
+  hhincome = seq(
+    as.numeric(cohort_income_range[[1]]),
+    as.numeric(cohort_income_range[[2]]),
+    length.out = 100
+  )
+) |>
+mutate(
+  greatest_silent = Cohort == "Greatest/Silent Generations",
+  genx = Cohort == "Generation X",
+  millenial = Cohort == "Millennials",
+  log_income = log(hhincome),
+  married = TRUE,
+  vet = veteran_reference,
+  native_citizen = TRUE
+)
+
+cohort_income_grid$homeownership_probability <- as.numeric(predict(
+  cohort_interactions_model_logit,
+  newdata = cohort_income_grid |>
+    select(greatest_silent, genx, millenial, log_income, married, vet, native_citizen),
+  type = "response"
+))
+
+cohort_income_plot <- ggplot(
+  cohort_income_grid,
+  aes(x = hhincome, y = homeownership_probability, color = Cohort, group = Cohort)
+) +
+  geom_line(linewidth = 0.9) +
+  scale_x_continuous(labels = scales::label_dollar()) +
+  scale_y_continuous(limits = c(0, 1), breaks = seq(0, 1, by = 0.2)) +
+  labs(
+    title = "Predicted Homeownership Probability by Income",
+    subtitle = sprintf(
+      "For married and native-born; veteran status at sample mean (%.1f%%)",
+      veteran_reference * 100
+    ),
+    x = "Household Income",
+    y = "Probability of Homeownership",
+    color = "Cohort"
+  ) +
+  theme_minimal(base_family = "Times New Roman")
+
+ggsave("answers/3.6.png", plot = cohort_income_plot)
+
