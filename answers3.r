@@ -389,3 +389,158 @@ flextable(cohort_predictions) |>
   ) |>
   autofit() |>
   save_as_docx(path = "answers/3.4.docx")
+
+
+# 3.5
+
+cohort_model_logit <- feglm(
+  homeowner ~ greatest_silent + genx + millenial + 
+  log_income + married + vet + native_citizen,
+  family = binomial(link = "logit"),
+  data = tenure_data
+)
+
+cohort_model_logit_summary <- summary(cohort_model_logit)
+
+cohort_logit_coefficients <- cohort_model_logit_summary$coeftable |>
+  as.data.frame() |>
+  tibble::rownames_to_column("Term") |>
+  mutate(Term = sub("TRUE$", "", Term))
+cohort_logit_fit <- fitstat(cohort_model_logit, c("ll", "pr2", "aic"))
+
+flextable(cohort_logit_coefficients) |>
+  theme_booktabs() |>
+  set_table_properties(opts_word = list(repeat_headers = FALSE)) |>
+  add_header_lines(values = c(
+    "Logit Model: Homeownership by Cohort with Controls",
+    paste("N =", format(cohort_model_logit_summary$nobs, big.mark = ",")),
+    paste(
+      "Standard errors:",
+      attr(cohort_model_logit_summary$coeftable, "vcov_type")
+    )
+  )) |>
+  set_header_labels(`Pr(>|z|)` = "P-value") |>
+  add_footer_lines(values = c(
+    "*** p < 0.001; ** p < 0.01; * p < 0.05; . p < 0.1",
+    sprintf("Log-likelihood: %.3f", as.numeric(cohort_logit_fit["ll"])),
+    sprintf("Pseudo R-squared: %.3f", as.numeric(cohort_logit_fit["pr2"])),
+    sprintf("AIC: %.3f", as.numeric(cohort_logit_fit["aic"]))
+  )) |>
+  font(fontname = "Times New Roman", part = "all") |>
+  fontsize(size = 12, part = "all") |>
+  fontsize(size = 10, part = "footer") |>
+  padding(padding.top = 0, padding.bottom = 0) |>
+  colformat_double(
+    j = c("Estimate", "Std. Error", "z value"),
+    digits = 3
+  ) |>
+  colformat_double(j = "Pr(>|z|)", digits = 3) |>
+  align(j = "Term", align = "left", part = "all") |>
+  align(i = 1:3, align = "right", part = "header") |>
+  align(
+    j = c("Estimate", "Std. Error", "z value", "Pr(>|z|)"),
+    align = "right",
+    part = "all"
+  ) |>
+  autofit() |>
+  save_as_docx(path = "answers/3.5.docx")
+
+cohort_controls_logit_slopes <- marginaleffects::avg_slopes(cohort_model_logit) |>
+  as.data.frame() |>
+  transmute(Term = sub("TRUE$", "", term), `Logit Avg Marginal Effect` = estimate)
+cohort_controls_comparison <- cohort_controls_coefficients |>
+  left_join(cohort_controls_logit_slopes, by = "Term") |>
+  select(Term, `LPM Estimate` = Estimate, `Logit Avg Marginal Effect`)
+
+flextable(cohort_controls_comparison) |>
+  theme_booktabs() |>
+  set_table_properties(opts_word = list(repeat_headers = FALSE)) |>
+  add_header_lines(values = "LPM Estimates and Logit Average Marginal Effects") |>
+  font(fontname = "Times New Roman", part = "all") |>
+  fontsize(size = 12, part = "all") |>
+  padding(padding.top = 0, padding.bottom = 0) |>
+  colformat_double(
+    j = c("LPM Estimate", "Logit Avg Marginal Effect"),
+    digits = 3
+  ) |>
+  align(j = "Term", align = "left", part = "all") |>
+  align(i = 1, align = "right", part = "header") |>
+  align(
+    j = c("LPM Estimate", "Logit Avg Marginal Effect"),
+    align = "right",
+    part = "all"
+  ) |>
+  autofit() |>
+  save_as_docx(path = "answers/3.5b.docx")
+
+cohort_logit_predictions <- cohort_prediction_data |>
+  mutate(
+    `25th Percentile Income` = as.numeric(predict(
+      cohort_model_logit,
+      newdata = tibble::tibble(
+        greatest_silent = greatest_silent,
+        genx = genx,
+        millenial = millenial,
+        log_income = log(income_reference[[1]]),
+        married = TRUE,
+        vet = veteran_reference,
+        native_citizen = TRUE
+      ),
+      type = "response"
+    )) * 100,
+    `90th Percentile Income` = as.numeric(predict(
+      cohort_model_logit,
+      newdata = tibble::tibble(
+        greatest_silent = greatest_silent,
+        genx = genx,
+        millenial = millenial,
+        log_income = log(income_reference[[2]]),
+        married = TRUE,
+        vet = veteran_reference,
+        native_citizen = TRUE
+      ),
+      type = "response"
+    )) * 100
+  ) |>
+  select(Cohort, `25th Percentile Income`, `90th Percentile Income`)
+
+flextable(cohort_logit_predictions) |>
+  theme_booktabs() |>
+  add_header_lines(values = "Logit-Predicted Homeownership Rate by Cohort") |>
+  set_header_labels(
+    Cohort = "Cohort",
+    `25th Percentile Income` = "25th Percentile Income",
+    `90th Percentile Income` = "90th Percentile Income"
+  ) |>
+  colformat_double(
+    j = c("25th Percentile Income", "90th Percentile Income"),
+    digits = 1,
+    suffix = "%"
+  ) |>
+  add_footer_lines(values = c(
+    sprintf(
+      "Married and native-born; veteran status held at sample mean (%.1f%%)",
+      veteran_reference * 100
+    ),
+    sprintf(
+      "Income cutoffs: 25th percentile = $%s; 90th percentile = $%s",
+      format(income_reference[[1]], big.mark = ",", scientific = FALSE),
+      format(income_reference[[2]], big.mark = ",", scientific = FALSE)
+    )
+  )) |>
+  font(fontname = "Times New Roman", part = "all") |>
+  fontsize(size = 12, part = "all") |>
+  fontsize(size = 12, part = "header") |>
+  border_inner_h(
+    border = officer::fp_border(color = "white", width = 0),
+    part = "header"
+  ) |>
+  align(j = "Cohort", align = "left", part = "all") |>
+  align(
+    j = c("25th Percentile Income", "90th Percentile Income"),
+    align = "right",
+    part = "all"
+  ) |>
+  autofit() |>
+  save_as_docx(path = "answers/3.5c.docx")
+
