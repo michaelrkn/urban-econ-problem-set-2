@@ -675,3 +675,142 @@ cohort_income_plot <- ggplot(
 
 ggsave("answers/3.6.png", plot = cohort_income_plot)
 
+
+# 3.7
+
+citizenship_homeownership <- feglm(
+  homeowner ~ native_citizen + abroad_citizen + naturalized_citizen +
+  log_income + married + vet,
+  family = binomial(link = "logit"),
+  data = tenure_data
+)
+
+citizenship_homeownership_summary <- summary(citizenship_homeownership)
+
+citizenship_coefficients <- citizenship_homeownership_summary$coeftable |>
+  as.data.frame() |>
+  tibble::rownames_to_column("Term") |>
+  mutate(Term = sub("TRUE$", "", Term))
+
+citizenship_slopes <- marginaleffects::avg_slopes(citizenship_homeownership) |>
+  as.data.frame() |>
+  transmute(Term = sub("TRUE$", "", term), `Avg Marginal Effect` = estimate)
+
+citizenship_comparison <- citizenship_coefficients |>
+  left_join(citizenship_slopes, by = "Term") |>
+  relocate(`Avg Marginal Effect`, .after = Estimate)
+
+citizenship_model_fit <- fitstat(citizenship_homeownership, c("ll", "pr2", "aic"))
+
+flextable(citizenship_comparison) |>
+  theme_booktabs() |>
+  set_table_properties(opts_word = list(repeat_headers = FALSE)) |>
+  add_header_lines(values = c(
+    "Logit Model: Homeownership by Citizenship",
+    paste("N =", format(citizenship_homeownership_summary$nobs, big.mark = ",")),
+    paste(
+      "Standard errors:",
+      attr(citizenship_homeownership_summary$coeftable, "vcov_type")
+    )
+  )) |>
+  set_header_labels(`Pr(>|z|)` = "P-value") |>
+  add_footer_lines(values = c(
+    "*** p < 0.001; ** p < 0.01; * p < 0.05; . p < 0.1",
+    "Average marginal effects are on the probability scale; the intercept has no slope.",
+    sprintf("Log-likelihood: %.3f", as.numeric(citizenship_model_fit["ll"])),
+    sprintf("Pseudo R-squared: %.3f", as.numeric(citizenship_model_fit["pr2"])),
+    sprintf("AIC: %.3f", as.numeric(citizenship_model_fit["aic"]))
+  )) |>
+  font(fontname = "Times New Roman", part = "all") |>
+  fontsize(size = 12, part = "all") |>
+  fontsize(size = 10, part = "footer") |>
+  padding(padding.top = 0, padding.bottom = 0) |>
+  colformat_double(
+    j = c("Estimate", "Avg Marginal Effect", "Std. Error", "z value"),
+    digits = 3
+  ) |>
+  colformat_double(j = "Pr(>|z|)", digits = 3) |>
+  align(j = "Term", align = "left", part = "all") |>
+  align(i = 1:3, align = "right", part = "header") |>
+  align(
+    j = c("Estimate", "Avg Marginal Effect", "Std. Error", "z value", "Pr(>|z|)"),
+    align = "right",
+    part = "all"
+  ) |>
+  autofit() |>
+  save_as_docx(path = "answers/3.7.docx")
+
+citizenship_cohort_data <- tenure_data |>
+  mutate(
+    Cohort = case_when(
+      greatest_silent ~ "Greatest/Silent Generations",
+      boomer ~ "Baby Boomers",
+      genx ~ "Generation X",
+      millenial ~ "Millennials",
+      TRUE ~ NA_character_
+    )
+  ) |>
+  filter(!is.na(Cohort)) |>
+  mutate(Cohort = factor(Cohort, levels = c(
+    "Greatest/Silent Generations",
+    "Baby Boomers",
+    "Generation X",
+    "Millennials"
+  ))) |>
+  group_by(Cohort)
+
+predict_citizenship_rate <- function(data, citizenship_status) {
+  scenario_data <- tibble::tibble(
+    native_citizen = citizenship_status == "native_citizen",
+    abroad_citizen = citizenship_status == "abroad_citizen",
+    naturalized_citizen = citizenship_status == "naturalized_citizen",
+    log_income = data$log_income,
+    married = data$married,
+    vet = data$vet
+  )
+
+  mean(predict(
+    citizenship_homeownership,
+    newdata = scenario_data,
+    type = "response"
+  ), na.rm = TRUE) * 100
+}
+
+citizenship_cohort_predictions <- citizenship_cohort_data |>
+  group_modify(~ tibble::tibble(
+    native_citizen = predict_citizenship_rate(.x, "native_citizen"),
+    abroad_citizen = predict_citizenship_rate(.x, "abroad_citizen"),
+    naturalized_citizen = predict_citizenship_rate(.x, "naturalized_citizen"),
+    noncitizen = predict_citizenship_rate(.x, "noncitizen")
+  )) |>
+  ungroup()
+
+flextable(citizenship_cohort_predictions) |>
+  theme_booktabs() |>
+  add_header_lines(values = "Predicted Homeownership Rate by Cohort and Citizenship") |>
+  set_header_labels(
+    Cohort = "Cohort",
+    native_citizen = "Native Citizen",
+    abroad_citizen = "Born Abroad to U.S. Parents",
+    naturalized_citizen = "Naturalized Citizen",
+    noncitizen = "Noncitizen"
+  ) |>
+  colformat_double(
+    j = c("native_citizen", "abroad_citizen", "naturalized_citizen", "noncitizen"),
+    digits = 1,
+    suffix = "%"
+  ) |>
+  add_footer_lines(values = paste(
+    "Predictions used the average of each cohort's observed log income, marital status, and veteran status."
+  )) |>
+  font(fontname = "Times New Roman", part = "all") |>
+  fontsize(size = 12, part = "all") |>
+  fontsize(size = 10, part = "footer") |>
+  align(j = "Cohort", align = "left", part = "all") |>
+  align(
+    j = c("native_citizen", "abroad_citizen", "naturalized_citizen", "noncitizen"),
+    align = "right",
+    part = "all"
+  ) |>
+  autofit() |>
+  save_as_docx(path = "answers/3.7b.docx")
