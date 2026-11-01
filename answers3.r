@@ -298,3 +298,94 @@ flextable(cohort_controls_coefficients) |>
   ) |>
   autofit() |>
   save_as_docx(path = "answers/3.3b.docx")
+
+
+# 3.4
+
+income_reference <- quantile(
+  tenure_data$hhincome,
+  probs = c(0.25, 0.90),
+  na.rm = TRUE
+)
+veteran_reference <- mean(tenure_data$vet, na.rm = TRUE)
+
+cohort_prediction_data <- tibble::tibble(
+  Cohort = c(
+    "Greatest/Silent Generations",
+    "Baby Boomers",
+    "Generation X",
+    "Millennials"
+  ),
+  greatest_silent = c(TRUE, FALSE, FALSE, FALSE),
+  genx = c(FALSE, FALSE, TRUE, FALSE),
+  millenial = c(FALSE, FALSE, FALSE, TRUE)
+)
+
+cohort_predictions <- cohort_prediction_data |>
+  mutate(
+    `25th Percentile Income` = as.numeric(predict(
+      cohort_model_with_controls,
+      newdata = tibble::tibble(
+        greatest_silent = greatest_silent,
+        genx = genx,
+        millenial = millenial,
+        log_income = log(income_reference[[1]]),
+        married = TRUE,
+        vet = veteran_reference,
+        native_citizen = TRUE
+      )
+    )) * 100,
+    `90th Percentile Income` = as.numeric(predict(
+      cohort_model_with_controls,
+      newdata = tibble::tibble(
+        greatest_silent = greatest_silent,
+        genx = genx,
+        millenial = millenial,
+        log_income = log(income_reference[[2]]),
+        married = TRUE,
+        vet = veteran_reference,
+        native_citizen = TRUE
+      )
+    )) * 100
+  ) |>
+  select(Cohort, `25th Percentile Income`, `90th Percentile Income`)
+
+flextable(cohort_predictions) |>
+  theme_booktabs() |>
+  add_header_lines(values = "Predicted Homeownership Rate by Cohort") |>
+  set_header_labels(
+    Cohort = "Cohort",
+    `25th Percentile Income` = "25th Percentile Income",
+    `90th Percentile Income` = "90th Percentile Income"
+  ) |>
+  colformat_double(
+    j = c("25th Percentile Income", "90th Percentile Income"),
+    digits = 1,
+    suffix = "%"
+  ) |>
+  add_footer_lines(values = c(
+    sprintf(
+      "Married and native-born; veteran status held at sample mean (%.1f%%)",
+      veteran_reference * 100
+    ),
+    sprintf(
+      "Income cutoffs: 25th percentile = $%s; 90th percentile = $%s",
+      format(income_reference[[1]], big.mark = ",", scientific = FALSE),
+      format(income_reference[[2]], big.mark = ",", scientific = FALSE)
+    )
+  )) |>
+  font(fontname = "Times New Roman", part = "all") |>
+  fontsize(size = 12, part = "all") |>
+  fontsize(size = 12, part = "header") |>
+  border_inner_h(
+    border = officer::fp_border(color = "white", width = 0),
+    part = "header"
+  ) |>
+  align(j = "Cohort", align = "left", part = "all") |>
+  align(
+    j = c("25th Percentile Income", "90th Percentile Income"),
+    align = "right",
+    part = "all"
+  ) |>
+  autofit() |>
+  save_as_docx(path = "answers/3.4.docx")
